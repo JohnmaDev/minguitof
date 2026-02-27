@@ -1,8 +1,11 @@
 from PIL import Image
 import datetime
-import requests # Necesario para hacer peticiones HTTP a la API de GitHub
-import os       # Necesario para acceder a variables de entorno (como tu token de GitHub)
+import requests
+import os
 import glob
+import json
+import base64
+import io
 
 # --- Funciones de Utilidad ---
 
@@ -47,14 +50,23 @@ def calcular_edad_exacta(fecha_nacimiento_str):
 
     return f"{años} años, {meses} meses, {dias} días"
 
-def convertir_imagen_a_ascii(ruta_imagen, ancho_salida=100):
+def convertir_imagen_a_ascii(ruta_o_base64, ancho_salida=100):
     """
-    Converts a given image to ASCII art.
+    Convierte una imagen (ruta de archivo o string base64) a arte ASCII.
     """
     try:
-        imagen = Image.open(ruta_imagen)
+        if ruta_o_base64.startswith("data:image") or len(ruta_o_base64) > 500: # Probable Base64
+            if "," in ruta_o_base64:
+                ruta_o_base64 = ruta_o_base64.split(",")[1]
+            img_data = base64.b64decode(ruta_o_base64)
+            imagen = Image.open(io.BytesIO(img_data))
+        else:
+            imagen = Image.open(ruta_o_base64)
+    except Exception as e:
+        print(f"Error al cargar la imagen: {e}")
+        return None
     except FileNotFoundError:
-        print(f"Error: La imagen en la ruta '{ruta_imagen}' no fue encontrada.")
+        print(f"Error: La imagen en la ruta '{ruta_o_base64}' no fue encontrada.")
         return None
     except Exception as e:
         print(f"Error al abrir la imagen: {e}")
@@ -80,70 +92,89 @@ def convertir_imagen_a_ascii(ruta_imagen, ancho_salida=100):
     return "\n".join(ascii_lines)
 
 # --- FUNCIONES PARA OBTENER DATOS DE GITHUB ---
-def obtener_datos_github(username, github_token=None):
+def obtener_datos_github_graphql(username, token):
     """
-    Obtiene estadísticas de GitHub para un usuario dado.
-    Requiere un token de GitHub para evitar límites de tasa para peticiones grandes.
+    Obtiene estadísticas precisas de GitHub usando GraphQL, incluyendo LOC dinámico.
     """
-    headers = {"Accept": "application/vnd.github.v3+json"}
-    if github_token:
-        headers["Authorization"] = f"token {github_token}"
-
-    stats = {
-        "total_repos": 0,
-        "total_stars": 0,
-        "total_forks": 0,
-        "total_followers": 0,
-        "total_commits": 0, 
+    query = """
+    query($login: String!) {
+      user(login: $login) {
+        followers { totalCount }
+        repositories(first: 30, ownerAffiliations: OWNER, orderBy: {field: PUSHED_AT, direction: DESC}) {
+          totalCount
+          nodes {
+            stargazers { totalCount }
+            forkCount
+            defaultBranchRef {
+              target {
+                ... on Commit {
+                  history(first: 100) {
+                    nodes {
+                      additions
+                      deletions
+                      author {
+                        user {
+                          login
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        contributionsCollection {
+          contributionCalendar {
+            totalContributions
+          }
+        }
+      }
     }
-
+    """
+    headers = {"Authorization": f"Bearer {token}"}
     try:
-        # 1. Obtener datos del usuario (seguidores)
-        user_url = f"https://api.github.com/users/{username}"
-        user_response = requests.get(user_url, headers=headers)
-        user_response.raise_for_status() 
-        user_data = user_response.json()
-        stats["total_followers"] = user_data.get("followers", 0)
+        response = requests.post("https://api.github.com/graphql", json={"query": query, "variables": {"login": username}}, headers=headers)
+        response.raise_for_status()
+        res_json = response.json()
+        if "data" not in res_json or res_json["data"]["user"] is None:
+            raise Exception(f"Error en respuesta GraphQL: {res_json}")
+            
+        data = res_json["data"]["user"]
+        repos = data["repositories"]["nodes"]
         
-        # 2. Obtener repositorios (para sumar estrellas y forks)
-        repos_url = f"https://api.github.com/users/{username}/repos?per_page=100&type=owner" 
-        page = 1
-        while True:
-            current_repos_url = f"{repos_url}&page={page}"
-            repos_response = requests.get(current_repos_url, headers=headers)
-            repos_response.raise_for_status()
-            repos_data = repos_response.json()
-
-            if not repos_data: 
-                break
-
-            for repo in repos_data:
-                if not repo.get("private", False): 
-                    stats["total_repos"] += 1 
-                    stats["total_stars"] += repo.get("stargazers_count", 0)
-                    stats["total_forks"] += repo.get("forks_count", 0)
-            page += 1
+        total_additions = 0
+        total_deletions = 0
         
-        # 3. Commits: Obtener commits a través de eventos públicos (aproximación)
-        events_url = f"https://api.github.com/users/{username}/events/public?per_page=100" 
-        events_response = requests.get(events_url, headers=headers)
-        events_response.raise_for_status()
-        events_data = events_response.json()
+        for repo in repos:
+            if repo["defaultBranchRef"] and repo["defaultBranchRef"]["target"]:
+                commits = repo["defaultBranchRef"]["target"]["history"]["nodes"]
+                for commit in commits:
+                    # Solo contar si el autor es el usuario (login coincide)
+                    if commit["author"]["user"] and commit["author"]["user"]["login"].lower() == username.lower():
+                        total_additions += commit["additions"]
+                        total_deletions += commit["deletions"]
 
-        if isinstance(events_data, list):
-            for event in events_data:
-                if event.get("type") == "PushEvent":
-                    for commit in event.get("payload", {}).get("commits", []):
-                        if commit.get("author", {}).get("name", "").lower() == username.lower(): # Asegurarse de que el autor sea el usuario
-                            stats["total_commits"] += 1
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Error al obtener datos de GitHub: {e}")
-        print("Asegúrate de que el nombre de usuario sea correcto y el token de GitHub válido si lo usas.")
+        net_loc = total_additions - total_deletions
+        loc_formatted = f"{net_loc:,} (+{total_additions:,}, -{total_deletions:,})"
+
+        stats = {
+            "total_repos": data["repositories"]["totalCount"],
+            "total_stars": sum(r["stargazers"]["totalCount"] for r in repos if "stargazers" in r),
+            "total_forks": sum(r["forkCount"] for r in repos if "forkCount" in r),
+            "total_followers": data["followers"]["totalCount"],
+            "total_commits": data["contributionsCollection"]["contributionCalendar"]["totalContributions"],
+            "dynamic_loc": loc_formatted
+        }
+        return stats
     except Exception as e:
-        print(f"Ocurrió un error inesperado al procesar datos de GitHub: {e}")
+        print(f"Error en GraphQL: {e}. Usando valores por defecto.")
+        return {
+            "total_repos": 0, "total_stars": 0, "total_forks": 0, 
+            "total_followers": 0, "total_commits": 0, "dynamic_loc": "0"
+        }
 
-    return stats
+# --- FUNCIONES PARA OBTENER DATOS DE GITHUB (LEGACY REST) ---
 
 # --- FUNCION PRINCIPAL DE GENERACION SVG ---
 
@@ -361,125 +392,143 @@ text, tspan {{white-space: pre;}}
 
 # --- SCRIPT USAGE ---
 if __name__ == "__main__":
-    ruta_de_tu_foto = "me.jpg" 
+    # Cargar configuración desde JSON
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print("Error: No se encontró config.json")
+        exit(1)
+
+    tu_github_username = config["github_username"]
+    datos_perfil = config["profile_data"]
+
+    # Determinar fuente de la imagen (Prioridad: Secret -> Archivo local)
+    ruta_o_base64 = os.getenv("PROFILE_IMAGE_BASE64", "me.jpg")
     ancho_deseado_ascii = 50
 
-    # 🚨🚨🚨 INICIO DE LA SECCIÓN QUE DEBES AÑADIR/VERIFICAR 🚨🚨🚨
-
-    # ¡IMPORTANTE! Cambia esto por tu usuario de GitHub REAL
-    tu_github_username = "minguitof" # <--- ¡PON AQUÍ TU USUARIO DE GITHUB!
-    
-    # Intenta obtener el token de GitHub de una variable de entorno por seguridad
+    # Obtener el token de GitHub
     github_token = os.getenv("GITHUB_TOKEN") 
     if not github_token:
-        print("Advertencia: No se encontró la variable de entorno GITHUB_TOKEN.")
-        print("Las peticiones a la API de GitHub pueden estar sujetas a límites de tasa.")
-        print("Para un uso prolongado o para evitar problemas, considera configurar GITHUB_TOKEN.")
-        print("Puedes obtener uno en: GitHub -> Settings -> Developer settings -> Personal access tokens -> Tokens (classic)")
-        print("Necesitas al menos el permiso 'public_repo' o 'repo'.")
-    
-    # Obtener los datos de GitHub (¡ESTO ES LO QUE HACE LA CONSULTA REAL!)
-    github_stats = obtener_datos_github(tu_github_username, github_token)
-
-    # 🚨🚨🚨 FIN DE LA SECCIÓN QUE DEBES AÑADIR/VERIFICAR 🚨🚨🚨
+        print("Advertencia: No se encontró GITHUB_TOKEN. Usando estadísticas manuales si es posible.")
+        github_stats = {
+            "total_repos": 0, "total_stars": 0, "total_forks": 0, 
+            "total_followers": 0, "total_commits": 0, "dynamic_loc": "0"
+        }
+    else:
+        # Obtener los datos de GitHub via GraphQL
+        github_stats = obtener_datos_github_graphql(tu_github_username, github_token)
 
     mis_datos_secciones = [
         {
             "title": "username_header",
-            "username": "M4r10@github",
+            "username": datos_perfil["username_display"],
             "items": [
-                ("Edad", calcular_edad_exacta("2001-02-04")),
-                ("Ubicación", "Medellín, Colombia"),
-                ("Intereses", "Desarrollo web, Backend"),
+                ("Edad", calcular_edad_exacta(datos_perfil["birth_date"])),
+                ("Ubicación", datos_perfil["location"]),
+                ("Intereses", datos_perfil["interests"]),
             ],
             "extra_line_after": True
         },
         {
             "title": "Stack",
             "items": [
-                ("Stack", "Python, JS, .NET Core, C#, GitHub Actions"),
-                ("Lenguajes de Programación", "JavaScript, C#"),
-                ("Tecnologías Web", "HTML, CSS, Vue.js, Node.js"), 
-                ("Bases de Datos", "MSSQL Server, MySQL"), 
-                ("Herramientas DevOps", "GitHub Actions"), 
+                ("Stack", datos_perfil["stack"]),
+                ("Lenguajes de Programación", datos_perfil["languages"]),
+                ("Tecnologías Web", datos_perfil["web_technologies"]), 
+                ("Bases de Datos", datos_perfil["databases"]), 
+                ("Herramientas DevOps", datos_perfil["devops_tools"]), 
             ],
             "extra_line_after": True
         },
         {
             "title": "Hobbies",
             "items": [
-                ("Hobbies", "Lectura, Gimnasio"),
+                ("Hobbies", datos_perfil["hobbies"]),
             ],
             "extra_line_after": True
         },
         {
             "title": "Contacto",
             "items": [
-                ("Email", "jhonechavarria0506@gmail.com"),
-                ("LinkedIn", "john-mario-echavarria-bermudez/"),
+                ("Email", datos_perfil["email"]),
+                ("LinkedIn", datos_perfil["linkedin"]),
             ],
             "extra_line_after": True
-        },
-        {
-            "title": "GitHub Stats",
-            "items": [
-                ("Total Repositorios", github_stats["total_repos"]),   # <--- ¡ESTO USARÁ EL VALOR DE LA API!
-                ("Estrellas Totales", github_stats["total_stars"]),   # <--- ¡ESTO USARÁ EL VALOR DE LA API!
-                ("Forks Totales", github_stats["total_forks"]),       # <--- ¡ESTO USARÁ EL VALOR DE LA API!
-                ("Total Commits", github_stats["total_commits"]),     # <--- ¡ESTO USARÁ EL VALOR DE LA API!
-                ("Seguidores", github_stats["total_followers"]),      # <--- ¡ESTO USARÁ EL VALOR DE LA API!
-                ("Líneas de Código (LOC)", "5,000 (+6000, -1000)"), # Este es el único que dejaste manual, y está bien 
-            ],
-            "extra_line_after": False
         }
     ]
 
-    bg_color = "#161b22" 
-    text_color = "#c9d1d9" 
-    key_color = "#ffa657" 
-    value_color = "#a5d6ff" 
+    # Añadir estadísticas si tenemos token
+    if github_token:
+        mis_datos_secciones.append({
+            "title": "GitHub Stats",
+            "items": [
+                ("Total Repositorios", github_stats["total_repos"]),
+                ("Estrellas Totales", github_stats["total_stars"]),
+                ("Forks Totales", github_stats["total_forks"]),
+                ("Total Commits", github_stats["total_commits"]),
+                ("Seguidores", github_stats["total_followers"]),
+                ("Líneas de Código (LOC)", github_stats["dynamic_loc"]), 
+            ],
+            "extra_line_after": False
+        })
 
-    border_color = "#444c56" 
+    # --- CONFIGURACIÓN DE COLORES PARA TEMAS ---
+    temas = {
+        "dark": {
+            "bg_color": "#161b22",
+            "text_color": "#c9d1d9",
+            "key_color": "#ffa657",
+            "value_color": "#a5d6ff",
+            "border_color": "#444c56",
+            "filename": "dark_mode.svg"
+        },
+        "light": {
+            "bg_color": "#ffffff",
+            "text_color": "#24292f",
+            "key_color": "#af5e14",
+            "value_color": "#0969da",
+            "border_color": "#d0d7de",
+            "filename": "light_mode.svg"
+        }
+    }
+    
     border_width = 2 
     border_radius = 10 
     
-    print(f"Generando SVG de perfil para: {ruta_de_tu_foto}...")
-    
-    ascii_result = convertir_imagen_a_ascii(ruta_de_tu_foto, ancho_salida=ancho_deseado_ascii)
-
-    
+    print(f"Generando arte ASCII para el perfil...")
+    ascii_result = convertir_imagen_a_ascii(ruta_o_base64, ancho_salida=ancho_deseado_ascii)
 
     if ascii_result:
+        for nombre_tema, colores in temas.items():
+            print(f"Generando SVG para tema {nombre_tema} ({colores['filename']})...")
+            generar_svg_con_info(ascii_result,
+                                 mis_datos_secciones,
+                                 output_filename=colores['filename'],
+                                 bg_color=colores['bg_color'],
+                                 text_color=colores['text_color'],
+                                 key_color=colores['key_color'],
+                                 value_color=colores['value_color'],
+                                 border_color=colores['border_color'],
+                                 border_width=border_width,
+                                 border_radius=border_radius
+                                 )
         
-        # Define un nombre de archivo SVG fijo, sin fechas.
-        svg_filename = "readme_profile.svg" # <--- ¡CAMBIO CLAVE AQUÍ! Este será el nombre fijo.
+        print("¡Archivos SVG generados con éxito!")
 
-        # *** Eliminamos toda la lógica de borrado de SVGs antiguos y el uso de glob ***
-        # Ya no es necesario, porque siempre vamos a sobrescribir el mismo archivo.
-        
-        # 1. Generar el archivo SVG
-        generar_svg_con_info(ascii_result,
-                             mis_datos_secciones,
-                             output_filename=svg_filename, # Ahora usa el nombre fijo
-                             bg_color=bg_color,
-                             text_color=text_color,
-                             key_color=key_color,
-                             value_color=value_color,
-                             border_color=border_color,
-                             border_width=border_width,
-                             border_radius=border_radius
-                             )
-        print(f"¡SVG de perfil generado como '{svg_filename}'!")
-
-        # 2. Actualizar el archivo README.md para que apunte al nuevo SVG
-        readme_content = rf"""
-![Perfil GitHub CSV-Dark](./{svg_filename})
+        # 2. Actualizar el archivo README.md para que use <picture> (Tema dinámico)
+        readme_content = f"""<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./{temas['dark']['filename']}">
+    <img alt="GitHub Profile README" src="./{temas['light']['filename']}">
+  </picture>
+</div>
 """
         with open("README.md", "w", encoding="utf-8") as f:
             f.write(readme_content)
 
-        print(f"¡README.md actualizado con el nuevo SVG!")
-        print("Ahora puedes hacer commit y push de '{svg_filename}' y 'README.md' a tu repositorio.")
+        print(f"¡README.md actualizado con soporte para temas claro/oscuro!")
+        print(f"Ahora puedes hacer commit de: {temas['dark']['filename']}, {temas['light']['filename']}, 'config.json' y 'README.md'")
 
     else:
-        print("\nNo se pudo generar el arte ASCII para el SVG. No se actualizará el README.md.")
+        print("\nNo se pudo generar el arte ASCII. Revisa la configuración de imagen.")

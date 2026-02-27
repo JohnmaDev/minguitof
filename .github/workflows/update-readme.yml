@@ -1,6 +1,9 @@
 name: 🛠️ Actualizar README automáticamente
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: '0 0 * * *'   # todos los días a medianoche UTC
   workflow_dispatch:
@@ -30,19 +33,21 @@ jobs:
           pip install Pillow 
 
       - name: Ejecutar script
-        run: python converter.py
         env:
           # ¡CORRECCIÓN AQUÍ! Asegúrate de que el nombre de la variable coincida con lo que tu script espera.
           # Tu script espera 'GITHUB_TOKEN', no 'GH_TOKEN'.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROFILE_IMAGE_BASE64: ${{ secrets.PROFILE_IMAGE_BASE64 }}
+        run: |
+          python converter.py
 
       - name: Hacer commit si hay cambios
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
-          # ¡CORRECCIÓN AQUÍ! Añade también el archivo SVG a los cambios.
-          git add README.md readme_profile.svg 
+          # ¡CORRECCIÓN AQUÍ! Añade también los archivos SVG a los cambios.
+          git add README.md dark_mode.svg light_mode.svg
           
           # Comitea solo si hay cambios en los archivos añadidos
           git diff --cached --quiet || git commit -m "🔄 Actualización automática del README"
