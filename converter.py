@@ -99,13 +99,14 @@ def obtener_datos_github_graphql(username, token):
     query = """
     query($login: String!) {
       user(login: $login) {
+        id
+        login
+        name
         followers { totalCount }
-        repositories(first: 50, ownerAffiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER], orderBy: {field: PUSHED_AT, direction: DESC}) {
+        repositories(first: 100, ownerAffiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER], orderBy: {field: PUSHED_AT, direction: DESC}) {
           totalCount
           nodes {
             name
-            stargazers { totalCount }
-            forkCount
             defaultBranchRef {
               target {
                 ... on Commit {
@@ -115,6 +116,7 @@ def obtener_datos_github_graphql(username, token):
                       deletions
                       author {
                         user {
+                          id
                           login
                         }
                         name
@@ -144,33 +146,52 @@ def obtener_datos_github_graphql(username, token):
             raise Exception(f"Error en respuesta GraphQL: {res_json}")
             
         data = res_json["data"]["user"]
+        user_id = data["id"]
+        user_login = data["login"].lower()
+        user_display_name = (data["name"] or "").lower()
+        
         repos = data["repositories"]["nodes"]
         
         total_additions = 0
         total_deletions = 0
+        repos_contados = 0
         
         for repo in repos:
             if repo["defaultBranchRef"] and repo["defaultBranchRef"]["target"]:
                 commits = repo["defaultBranchRef"]["target"]["history"]["nodes"]
+                repo_add = 0
+                repo_del = 0
                 for commit in commits:
-                    # Coincidencia de autor robusta: login o nombre
                     is_me = False
-                    if commit["author"]["user"] and commit["author"]["user"]["login"].lower() == username.lower():
+                    # 1. Por ID de GitHub (lo más robusto)
+                    if commit["author"]["user"] and commit["author"]["user"]["id"] == user_id:
                         is_me = True
-                    elif commit["author"]["name"] and commit["author"]["name"].lower() == username.lower():
+                    # 2. Por login de usuario
+                    elif commit["author"]["user"] and commit["author"]["user"]["login"].lower() == user_login:
+                        is_me = True
+                    # 3. Por nombre (útil para commits locales no vinculados)
+                    elif commit["author"]["name"] and commit["author"]["name"].lower() == user_display_name:
                         is_me = True
                     
                     if is_me:
-                        total_additions += commit["additions"]
-                        total_deletions += commit["deletions"]
+                        repo_add += commit["additions"]
+                        repo_del += commit["deletions"]
+                
+                if repo_add > 0 or repo_del > 0:
+                    total_additions += repo_add
+                    total_deletions += repo_del
+                    repos_contados += 1
 
         net_loc = total_additions - total_deletions
         loc_formatted = f"{net_loc:,} (+{total_additions:,}, -{total_deletions:,})"
+        
+        # Log interno (visible en GitHub Actions) para diagnosticar
+        print(f"DEBUG: LOC calculado en {repos_contados} repositorios con actividad tuya.")
 
         stats = {
             "total_repos": data["repositories"]["totalCount"],
-            "total_stars": sum(r["stargazers"]["totalCount"] for r in repos if "stargazers" in r),
-            "total_forks": sum(r["forkCount"] for r in repos if "forkCount" in r),
+            "total_stars": sum(r.get("stargazers", {}).get("totalCount", 0) for r in repos),
+            "total_forks": sum(r.get("forkCount", 0) for r in repos),
             "total_followers": data["followers"]["totalCount"],
             "total_commits": data["contributionsCollection"]["contributionCalendar"]["totalContributions"],
             "dynamic_loc": loc_formatted
