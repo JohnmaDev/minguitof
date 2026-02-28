@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageEnhance
 import datetime
 import requests
 import os
@@ -72,14 +72,21 @@ def convertir_imagen_a_ascii(ruta_o_base64, ancho_salida=100):
         print(f"Error al abrir la imagen: {e}")
         return None
 
-    imagen = imagen.convert("L") #Convierte la imagen a escala de grises. | L = Luminosidad
+    # --- MEJORA "BRUTAL" ---
+    # 1. Convertimos a escala de grises y subimos el contraste
+    imagen = imagen.convert("L")
+    realzador = ImageEnhance.Contrast(imagen)
+    imagen = realzador.enhance(2.0) # 2.0 = Contraste fuerte para un look "brutal"
 
+    # 2. Redimensionamos manteniendo la relación de aspecto
     ancho_original, alto_original = imagen.size
     relacion_aspecto = alto_original / ancho_original
     alto_salida = int(ancho_salida * relacion_aspecto * 0.55) 
     imagen = imagen.resize((ancho_salida, alto_salida))
 
-    ascii_chars = "#W$@%*+=-. " # Puedes cambiar valores para mas detalles ASCII Art, izquierda a derecha | claro a oscuro
+    # 3. Juego de caracteres más denso y agresivo
+    # De más oscuro (@) a más claro ( )
+    ascii_chars = "@#S%?*+;:,. " 
 
     pixels = imagen.getdata()
     ascii_art = ""
