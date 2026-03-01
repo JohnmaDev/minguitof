@@ -59,11 +59,11 @@ text, tspan {white-space: pre;}
 <g id="info-panel">
 <text x="495" y="102.30000000000001" fill="#c9d1d9"><tspan x="495" y="102.30000000000001">-----------------JohnmaDev@github------------------</tspan>
 <tspan x="495" y="121.50000000000001">---------------------------------------------------</tspan>
-<tspan x="495" y="144.54000000000002" class="key">🎂 Edad: </tspan><tspan x="571.8" y="144.54000000000002" fill="#c9d1d9">.................</tspan><tspan x="744.6" y="144.54000000000002" class="value">25 años, 0 meses, 24 días</tspan>
+<tspan x="495" y="144.54000000000002" class="key">🎂 Edad: </tspan><tspan x="571.8" y="144.54000000000002" fill="#c9d1d9">.................</tspan><tspan x="744.6" y="144.54000000000002" class="value">25 años, 0 meses, 25 días</tspan>
 <tspan x="495" y="163.74" class="key">📍 Ubicación: </tspan><tspan x="619.8" y="163.74" fill="#c9d1d9">...................</tspan><tspan x="811.8" y="163.74" class="value">Medellín, Colombia</tspan>
 <tspan x="495" y="182.94" class="key">💡 Intereses: </tspan><tspan x="619.8" y="182.94" fill="#c9d1d9">..............</tspan><tspan x="763.8" y="182.94" class="value">Desarrollo web, Backend</tspan>
 <tspan x="495" y="211.73999999999998" class="section-title">- Stack</tspan><tspan x="562.2" y="211.73999999999998" fill="#c9d1d9">--------------------------------------------</tspan>
-<tspan x="495" y="234.77999999999997" class="key">💻 Stack: </tspan><tspan class="value">Python, JS, .NET Core, C#, GitHub Actions</tspan>
+<tspan x="495" y="234.77999999999997" class="key">💻 Stack: </tspan><tspan class="value">Python, JS, GitHub Actions</tspan>
 <tspan x="495" y="253.97999999999996" class="key">🧠 Lenguajes de Programación: </tspan><tspan class="value">JavaScript, C#</tspan>
 <tspan x="495" y="273.17999999999995" class="key">🌐 Tecnologías Web: </tspan><tspan class="value">HTML, CSS, Vue.js, Node.js</tspan>
 <tspan x="495" y="292.37999999999994" class="key">💾 Bases de Datos: </tspan><tspan class="value">MSSQL Server, MySQL</tspan>
@@ -77,7 +77,7 @@ text, tspan {white-space: pre;}
 <tspan x="495" y="486.3" class="key">📦 Total Repositorios: </tspan><tspan x="706.2" y="486.3" fill="#c9d1d9">...........................</tspan><tspan x="975.0000000000001" y="486.3" class="value">7</tspan>
 <tspan x="495" y="505.5" class="key">⭐ Estrellas Totales: </tspan><tspan x="696.6" y="505.5" fill="#c9d1d9">............................</tspan><tspan x="975.0000000000001" y="505.5" class="value">0</tspan>
 <tspan x="495" y="524.7" class="key">🍴 Forks Totales: </tspan><tspan x="658.2" y="524.7" fill="#c9d1d9">................................</tspan><tspan x="975.0000000000001" y="524.7" class="value">0</tspan>
-<tspan x="495" y="543.9000000000001" class="key">⚡ Total Commits: </tspan><tspan x="658.2" y="543.9000000000001" fill="#c9d1d9">..............................</tspan><tspan x="955.8000000000001" y="543.9000000000001" class="value">165</tspan>
+<tspan x="495" y="543.9000000000001" class="key">⚡ Total Commits: </tspan><tspan x="658.2" y="543.9000000000001" fill="#c9d1d9">..............................</tspan><tspan x="955.8000000000001" y="543.9000000000001" class="value">166</tspan>
 <tspan x="495" y="563.1000000000001" class="key">👥 Seguidores: </tspan><tspan x="629.4" y="563.1000000000001" fill="#c9d1d9">...................................</tspan><tspan x="975.0" y="563.1000000000001" class="value">0</tspan>
 <tspan x="495" y="582.3000000000002" class="key">📈 Líneas de Código (LOC): </tspan><tspan class="value">50,389</tspan><tspan class="value"> (</tspan><tspan fill="#3fb950">+54</tspan><tspan class="value">,</tspan><tspan> </tspan><tspan fill="#f85149">-3</tspan><tspan class="value">)</tspan>
 </text>
