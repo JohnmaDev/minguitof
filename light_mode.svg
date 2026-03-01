@@ -77,8 +77,8 @@ text, tspan {white-space: pre;}
 <tspan x="495" y="486.3" class="key">📦 Total Repositorios: </tspan><tspan x="706.2" y="486.3" fill="#24292f">...........................</tspan><tspan x="975.0000000000001" y="486.3" class="value">7</tspan>
 <tspan x="495" y="505.5" class="key">⭐ Estrellas Totales: </tspan><tspan x="696.6" y="505.5" fill="#24292f">............................</tspan><tspan x="975.0000000000001" y="505.5" class="value">0</tspan>
 <tspan x="495" y="524.7" class="key">🍴 Forks Totales: </tspan><tspan x="658.2" y="524.7" fill="#24292f">................................</tspan><tspan x="975.0000000000001" y="524.7" class="value">0</tspan>
-<tspan x="495" y="543.9000000000001" class="key">⚡ Total Commits: </tspan><tspan x="658.2" y="543.9000000000001" fill="#24292f">..............................</tspan><tspan x="955.8000000000001" y="543.9000000000001" class="value">166</tspan>
+<tspan x="495" y="543.9000000000001" class="key">⚡ Total Commits: </tspan><tspan x="658.2" y="543.9000000000001" fill="#24292f">..............................</tspan><tspan x="955.8000000000001" y="543.9000000000001" class="value">168</tspan>
 <tspan x="495" y="563.1000000000001" class="key">👥 Seguidores: </tspan><tspan x="629.4" y="563.1000000000001" fill="#24292f">...................................</tspan><tspan x="975.0" y="563.1000000000001" class="value">0</tspan>
-<tspan x="495" y="582.3000000000002" class="key">📈 Líneas de Código (LOC): </tspan><tspan class="value">50,389</tspan><tspan class="value"> (</tspan><tspan fill="#3fb950">+54</tspan><tspan class="value">,</tspan><tspan> </tspan><tspan fill="#f85149">-3</tspan><tspan class="value">)</tspan>
+<tspan x="495" y="582.3000000000002" class="key">📈 Líneas de Código (LOC): </tspan><tspan class="value">50,498</tspan><tspan class="value"> (</tspan><tspan fill="#3fb950">+54</tspan><tspan class="value">,</tspan><tspan> </tspan><tspan fill="#f85149">-3</tspan><tspan class="value">)</tspan>
 </text>
 </g> </svg>
